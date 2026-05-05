@@ -1,0 +1,10 @@
+﻿.venv/
+data/
+__pycache__/
+.ipynb_checkpoints/
+wandb/
+lightning_logs/
+*.ckpt
+mlops-bloodmnist/
+.idea/
+notatki_zadanie1.txt
