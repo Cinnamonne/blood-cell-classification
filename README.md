@@ -1,5 +1,8 @@
 # BloodMNIST Classification with PyTorch Lightning
 
+
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
 ## Opis projektu
 
 Projekt dotyczy klasyfikacji typów komórek krwi na podstawie obrazów mikroskopowych ze zbioru **BloodMNIST**.
@@ -114,10 +117,11 @@ weight_decay```.
 
 Optuna minimalizowała ``` best val_loss```, czyli najlepszą stratę walidacyjną uzyskaną podczas treningu.
 
-
 ## Instalacja środowiska
 
-Projekt był przygotowany na Windowsie z użyciem środowiska `.venv`, które trzeba stworzyć lokalnie i zainstalować zależności z `requirements.txt`.
+Projekt był przygotowany na Windowsie z użyciem środowiska `.venv`.
+
+PyTorch i torchvision są instalowane osobno, projekt używa wersji z obsługą CUDA 12.8. Pozostałe biblioteki są instalowane z pliku `requirements.txt`.
 
 ### Windows / PowerShell
 
@@ -133,10 +137,22 @@ Aktywacja środowiska:
 .\.venv\Scripts\Activate.ps1
 ```
 
-Instalacja zależności:
+Aktualizacja `pip`:
 
 ```powershell
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+```
+
+Instalacja PyTorch z obsługą CUDA 12.8:
+
+```powershell
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+Instalacja pozostałych zależności:
+
+```powershell
+python -m pip install -r requirements.txt
 ```
 
 ### Linux / macOS
@@ -153,10 +169,22 @@ Aktywacja środowiska:
 source .venv/bin/activate
 ```
 
-Instalacja zależności:
+Aktualizacja `pip`:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+```
+
+Instalacja PyTorch z obsługą CUDA 12.8:
+
+```bash
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+Instalacja pozostałych zależności:
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 Logowanie do WandB:
@@ -190,9 +218,6 @@ Optymalizacja hiperparametrów:
 ```powershell
 python src\tune.py
 ```
-
-## Eksperymenty
-
 
 ## Eksperymenty
 
@@ -251,3 +276,145 @@ test_acc = 0.9336
 ```
 
 Optuna poprawiła więc wynik walidacyjny, ale najwyższą skuteczność na zbiorze testowym uzyskał baseline 50 epok.
+
+
+
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+
+##  BentoML model serving
+
+Ta część projektu uruchamia wytrenowany klasyfikator BloodMNIST jako usługę REST API poprzez BentoML. Używany jest modelu wytrenowanego i wczytuje checkpoint z ```checkpoints/best.ckpt```.
+
+Kod API znajduje się w: ```service.py```, przykładowy klient wysyłający zapytania do API znajduje się w ```client.py```
+
+Kod pomocniczy do wyświetlania obrazów z BloodMNIST znajduje się w pliku: ```show_bloodmnist.py```
+
+### Wymagany checkpoint
+
+Przed uruchomieniem serwera trzeba umieścić wybrany checkpoint modelu w:```checkpoints/best.ckpt```
+
+Struktura projektu:
+
+```text
+blood-cell-classification/
+├── checkpoints/
+│   └── best.ckpt
+├── service.py
+├── client.py
+├── show_bloodmnist.py
+├── requirements.txt
+└── README.md
+```
+
+### Uruchomienie serwisu BentoML
+
+W pierwszym terminalu należy uruchomić serwer:
+
+```powershell
+bentoml serve service:BloodCellClassifier
+```
+
+Serwer działa lokalnie pod adresem: ```http://localhost:3000```
+
+Adres do wysyłania obrazów do predykcji:```http://localhost:3000/predict```
+
+Klient wysyła tam obraz poprzez `POST`, a serwer zwraca przewidzianą klasę komórki krwi.
+Serwis używa GPU, jeśli CUDA jest dostępna, inaczej działa na CPU.
+
+### Uruchomienie klienta
+
+W drugim terminalu należy aktywować środowisko wirtualne i uruchomić jeden z poniższych wariantów.
+
+wybranie pierwszego przykładu ze zbioru testowego BloodMNIST:
+
+```powershell
+python client.py
+```
+
+Można wybrać dowolną liczbę losowych przykładów, przykładowo chcąc 4 losowe przykłady ze zbioru testowego:
+
+```powershell
+python client.py n
+```
+
+Wybranie określonych przykładów ze zbioru testowego BloodMNIST według indeksów:
+
+```powershell
+python client.py --indices 0 10 25
+```
+
+Wybranie pierwszego przykładu BloodMNIST i wyświetlenie obrazu po predykcji:
+
+```powershell
+python client.py --show-images
+```
+
+Użycie 4 losowych przykładów BloodMNIST i wyświetlenie ich po predykcji:
+
+```powershell
+python client.py 4 --show-images
+```
+
+Użycie wybranych przykładów BloodMNIST i wyświetlenie ich po predykcji:
+
+```powershell
+python client.py --indices 0 10 25 --show-images
+```
+
+Użycie jednego własnego obrazu z pliku:
+
+```powershell
+python client.py sample_images\monocyte.jpg
+```
+
+Użycie wszystkich obsługiwanych obrazów z folderu:
+
+```powershell
+python client.py sample_images
+```
+
+Obsługiwane formaty własnych obrazów:
+
+```text
+.png, .jpg, .jpeg, .bmp, .tiff, .webp
+```
+
+Opcja `--show-images` działa dla przykładów z BloodMNIST. W kodzie ustawiony jest limit liczby wyświetlanych obrazów, żeby nie tworzyć zbyt dużego wykresu.
+
+### Przykładowy wynik
+
+Przykładowa komenda:
+
+```powershell
+python client.py
+```
+
+Przykładowa odpowiedź:
+
+```text
+Source: BloodMNIST test_dataset[0]
+True label: 3
+Response:
+{
+  "device": "cuda",
+  "predicted_class_id": 5,
+  "predicted_class_name": "monocyte",
+  "probabilities": [
+    0.0030919541604816914,
+    0.0000002918598625001323,
+    0.000017613718227948993,
+    0.1857094168663025,
+    0.00003775582445086911,
+    0.8111426830291748,
+    0.00000032874950761652144,
+    0.000000000001300972242261611
+  ]
+}
+```
+
+Zwracany JSON zawiera urządzenie użyte do wykonania predykcji, przewidziany identyfikator klasy, nazwę przewidzianej klasy oraz prawdopodobieństwa dla wszystkich 8 klas BloodMNIST.
+
+
+
+
