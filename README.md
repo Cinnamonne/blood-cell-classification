@@ -530,3 +530,104 @@ Po uruchomieniu kontenera endpoint można ponownie sprawdzić komendą:
 ```powershell
 python test_deployed_service.py
 ```
+
+
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+
+## 4. Serverless deployment
+
+Ta część projektu uruchamia predykcję modelu w architekturze serverless na Azure. Funkcja działa automatycznie po dodaniu obrazu do Azure Blob Storage.
+
+Wykorzystane elementy:
+
+```text
+Model: BloodCellCNN wytrenowany na BloodMNIST
+Cloud storage: Azure Blob Storage
+Serverless function: Azure Function uruchomiona jako kontener
+Container registry: Azure Container Registry
+Docker image: blood-cell-function:v1
+```
+
+### Struktura rozwiązania
+
+W Azure Storage Account utworzone zostały dwa kontenery: ``` input-images``` i  ```results```. Kontener `input-images` służy do wrzucania obrazów wejściowych, kontener `results` służy do zapisywania wyników predykcji w formacie JSON.
+
+Przebieg działania wygląda tak:
+
+```text
+upload obrazu do input-images
+→ automatyczne uruchomienie Azure Function
+→ pobranie obrazu przez funkcję
+→ wykonanie predykcji modelem BloodCellCNN
+→ zapis wyniku jako JSON do results
+```
+
+### Kod funkcji
+
+Kod funkcji serverless znajduje się w folderze ```azure_function/```. Najważniejsze pliki:
+
+```text
+azure_function/function_app.py
+azure_function/Dockerfile
+azure_function/requirements.txt
+azure_function/host.json
+```
+
+Plik `function_app.py` zawiera funkcję `PredictBloodCell`, która reaguje na dodanie pliku do kontenera `input-images`.
+
+Funkcja wczytuje obraz, przygotowuje go do formatu oczekiwanego przez model, wykonuje predykcję i zapisuje wynik do kontenera `results`.
+
+### Docker image
+
+Funkcja została spakowana do obrazu Docker. Obraz zawiera:
+
+```text
+kod funkcji
+kod modelu
+checkpoint modelu
+biblioteki potrzebne do predykcji
+```
+Budowanie obrazu lokalnie:
+
+```powershell
+docker buildx build --platform linux/amd64 --provenance=false -f azure_function/Dockerfile -t bloodcellh4acr.azurecr.io/blood-cell-function:v1 --push .
+```
+
+Obraz został wysłany do Azure Container Registry: ```bloodcellh4acr.azurecr.io```
+
+### Uruchomienie na Azure
+
+W Azure utworzone zostały:
+
+```text
+Storage Account
+Azure Container Registry
+Azure Function uruchomiona w Container Apps
+```
+
+Azure Function została uruchomiona z obrazu Docker: ```bloodcellh4acr.azurecr.io/blood-cell-function:v1```
+
+Funkcja używa triggera Blob Storage. Oznacza to, że uruchamia się automatycznie po dodaniu nowego obrazu do kontenera `input-images`.
+
+### Test działania
+
+Do kontenera `input-images` został wrzucony obraz testowy. W kontenerze `results` pojawił się plik JSON z wynikiem predykcji:
+
+```json
+{
+  "source_blob": "input-images/basophil.png",
+  "predicted_class_id": 7,
+  "predicted_class_name": "platelet",
+  "probabilities": [
+    0.008859595283865929,
+    0.08915380388498306,
+    0.11022865027189255,
+    0.08168857544660568,
+    0.014438780955970287,
+    0.013760769739747047,
+    0.021206164732575417,
+    0.6606636047363281
+  ]
+}
+```
