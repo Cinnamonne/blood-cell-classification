@@ -3,13 +3,11 @@ import sys
 import requests
 
 
-# Domyślny adres lokalnego serwisu
-DEFAULT_URL = "http://localhost:3000/predict"
+# Domyślny adres serwera na Azure VM
+DEFAULT_URL = "http://68.221.141.213:3000/predict"
 
 
-# Prosty przykładowy obraz w formacie oczekiwanym przez model
-# Kształt danych to [3, 28, 28]
-# 3 oznacza kanały RGB, a 28x28 to rozmiar obrazu BloodMNIST
+# Prosty przykładowy obraz w formacie [3, 28, 28]
 TEST_IMAGE = [
     [
         [0.0 for _ in range(28)]
@@ -20,8 +18,7 @@ TEST_IMAGE = [
 
 
 def main():
-    # Jeśli podano adres endpointu w argumencie, użyj go
-    # Jeśli nie podano, użyj lokalnego adresu
+    # Jeśli podano inny endpoint w argumencie, użyj go, jak nie podano, użyj domyślnego endpointu z Azure VM
     url = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_URL
 
     response = requests.post(

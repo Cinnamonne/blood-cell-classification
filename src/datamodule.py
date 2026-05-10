@@ -20,28 +20,28 @@ class BloodMNISTDataModule(L.LightningDataModule):
             self,
             data_dir: str = "data",
             batch_size: int = 128,
-            num_workers: int = 0,
+            num_workers: int = 0, #liczba dodatkowych procesów do ładowania danych
     ):
-        super().__init__()
+        super().__init__() #konstruktor klasy bazowej LightningDataModule
 
-        self.data_dir = data_dir # Folder do zapisu datasetu
-        self.batch_size = batch_size # Liczba obrazów w jednej paczce danych
+        self.data_dir = data_dir #folder do zapisu datasetu
+        self.batch_size = batch_size #liczba obrazów w jednej paczce danych
 
         self.num_workers = num_workers
-        self.info = INFO["bloodmnist"] # info o zbiorze BloodMNIST z biblioteki MedMNIST
+        self.info = INFO["bloodmnist"] #info o zbiorze BloodMNIST z biblioteki MedMNIST
 
-        self.num_classes = len(self.info["label"]) # Liczba klas - typów komórek krwi
-        self.n_channels = self.info["n_channels"]# Liczba kanałów obrazu, BloodMNIST ma obrazy RGB, więc są 3 kanały
+        self.num_classes = len(self.info["label"]) #liczba klas - typów komórek krwi
+        self.n_channels = self.info["n_channels"]# liczba kanałów obrazu, BloodMNIST ma obrazy RGB, więc są 3 kanały
 
-        # Zmienne na datasety, najpierw puste i zostaną utworzone w setup()
+        #zmienne na datasety, najpierw puste i zostaną utworzone w setup()
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
 
-        # Transformacje wykonywane na każdym obrazie
+        #transformacje po kolei wykonywane na każdym obrazie
         self.transform = transforms.Compose(
             [
-                # Zamienia obraz na tensor PyTorch, kształt obrazu zmieni się na [kanały, wysokość, szerokość]
+                #zamienia obraz na tensor PyTorch, kształt obrazu zmieni się na [kanały, wysokość, szerokość]
                 transforms.ToTensor(),
 
                 # Normalizuje wartości pikseli, obraz RGB ma 3 kanały, więc podajemy 3 średnie i 3 odchylenia
@@ -56,7 +56,7 @@ class BloodMNISTDataModule(L.LightningDataModule):
         """
         Pobiera dane na dysk.
         Lightning uruchamia tę metodę tylko do pobierania danych,
-        a nie do tworzenia obiektów datasetu używanych w treningu.
+        a nie do tworzenia obiektów datasetu używanych w treningu
         """
 
         BloodMNIST(
@@ -91,8 +91,8 @@ class BloodMNISTDataModule(L.LightningDataModule):
             root=self.data_dir,
             transform=self.transform,
 
-            # MedMNIST zwraca etykietę jako małą tablicę, np. [3].
-            # Model potrzebuje zwykłej liczby całkowitej, np. 3.
+            #MedMNIST zwraca etykietę jako małą tablicę, np. [3]
+            #Model potrzebuje zwykłej liczby całkowitej, np. 3
             target_transform=lambda y: int(y[0]),
             download=False,
         )

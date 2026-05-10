@@ -1,14 +1,11 @@
-# BloodMNIST Classification with PyTorch Lightning
+## 1. BloodMNIST Classification with PyTorch Lightning
 
 
-------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------
 ## Opis projektu
 
 Projekt dotyczy klasyfikacji typów komórek krwi na podstawie obrazów mikroskopowych ze zbioru **BloodMNIST**.
 
-Celem było przygotowanie prostego pipeline'u MLOps dla modelu:
-
+Celem było przygotowanie procesu trenowania modelu:
 - przygotowanie danych przez `Dataset` / `DataLoader`,
 - użycie `LightningDataModule`,
 - użycie `LightningModule`,
@@ -68,10 +65,12 @@ Odpowiada za przygotowanie danych:
 - przygotowanie transformacji obrazów,
 - utworzenie zbiorów `train`, `validation` i `test`,
 - utworzenie DataLoaderów.
+
+
 batch_size = 128
 
 ### `src/model.py`
-Plik zawiera model w PyTorch Lightning. Model ```BloodCellCNN``` to prosta sieć CNN do klasyfikacji obrazów. Architektura:
+Lightning module, zawiera model w PyTorch Lightning. Model ```BloodCellCNN``` to prosta sieć CNN do klasyfikacji obrazów. Architektura:
 ```text
 Conv2d → ReLU → MaxPool
 Conv2d → ReLU → MaxPool
@@ -86,16 +85,8 @@ Funkcja straty to ```cross_entropy```.
 
 Optymalizator: ```AdamW```
 
-Logowane metryki:
+Logowane metryki: ```train_loss, train_acc, val_loss, val_acc, test_loss, test_acc```
 
-```text
-train_loss
-train_acc
-val_loss
-val_acc
-test_loss
-test_acc
-```
 Metryki treningowe i walidacyjne były logowane raz na epokę.
 
 ### `src/train.py`
@@ -221,47 +212,36 @@ python src\tune.py
 
 ## Eksperymenty
 
-Początkowo model był trenowany przez 10 epok. Ten etap służył głównie do sprawdzenia, czy cały pipeline działa poprawnie: dane się ładują, model się uczy, a WandB zapisuje metryki.
-
-Pierwszy baseline dla 10 epok osiągnął `best val_loss = 0.2722` oraz `test_acc = 0.877`. Następnie użyto Optuny do optymalizacji samego `learning_rate`. Optuna znalazła `learning_rate ≈ 0.003857`, co poprawiło wynik krótkiego treningu do `best val_loss = 0.2567` i `test_acc = 0.886`.
+Początkowo model był trenowany przez 10 epok. Pierwszy baseline dla 10 epok osiągnął `best val_loss = 0.2722` oraz `test_acc = 0.877`. Użyto Optuny do optymalizacji `learning_rate`. Optuna znalazła `learning_rate ≈ 0.003857`, co poprawiło wynik do `best val_loss = 0.2567` i `test_acc = 0.886`.
 
 Po analizie wykresów trening został wydłużony do maksymalnie 50 epok. Dodano `EarlyStopping` z `patience = 5`, aby trening zatrzymywał się automatycznie, gdy `val_loss` przestaje się poprawiać.
 
-Dla 50 epok baseline z `learning_rate = 0.001` i `weight_decay = 0.0001` osiągnął `best val_loss = 0.1874` oraz `test_acc = 0.9336`. Znaleziony wcześniej `learning_rate` dla krótszego treningu nie działał lepiej przy dłuższym treningu, model z `learning_rate ≈ 0.003857` osiągnął `best val_loss = 0.2329` oraz `test_acc = 0.8906`.
+Dla 50 epok baseline z `learning_rate = 0.001` i `weight_decay = 0.0001` osiągnął `best val_loss = 0.1874` oraz `test_acc = 0.9336`, więc wyniki się poprawiły.
 
-Następnie powtórzono optymalizację dla konfiguracji z 50 epokami. Optymalizacja samego `learning_rate` nie poprawiła baseline, najlepsze wyniki wyniosły `learning_rate ≈ 0.002335` i `best val_loss = 0.1808`, a baseline miał `best val_loss = 0.1726`.
+Znaleziony wcześniej `learning_rate` dla krótszego treningu nie działał lepiej przy 50 epokach, model z `learning_rate ≈ 0.003857` osiągnął `best val_loss = 0.2329` oraz `test_acc = 0.8906`.
+
+Następnie powtórzono optymalizację samego `learning_rate` dla konfiguracji z 50 epokami. Najlepsza próba Optuny dała `learning_rate ≈ 0.002335` i `best val_loss = 0.1808`, ale baseline z `learning_rate = 0.001` miał lepszy wynik walidacyjny, dlatego sama optymalizacja `learning_rate` nie poprawiła baseline. Jedną z przyczyn mogła być mała liczba prób.
 
 Na końcu zoptymalizowano dwa hiperparametry jednocześnie: `learning_rate` i `weight_decay`. Przeszukiwane zakresy to `learning_rate` od `0.0001` do `0.01` oraz `weight_decay` od `0.000001` do `0.01`. Wykonano 10 prób.
 
-Najlepszy zestaw hiperparametrów znaleziony przez Optunę:
-
-- `learning_rate = 0.0015435312235389442`
-- `weight_decay = 0.00001053809851988176`
-
-Wynik Optuny dla tych hiperparametrów to `best val_loss = 0.1653`, czyli poprawa względem baseline o `0.0184`.
-
-Finalny trening z tymi hiperparametrami osiągnął `best val_loss = 0.1728` oraz `test_acc = 0.9196`.
+Najlepszy zestaw hiperparametrów znaleziony przez Optunę to `learning_rate = 0.0015435312235389442` i `weight_decay = 0.00001053809851988176`. Wynik Optuny dla tych hiperparametrów to `best val_loss = 0.1653`, czyli poprawa względem baseline o `0.0184`. Ostateczny trening z tymi hiperparametrami osiągnął `best val_loss = 0.1728` oraz `test_acc = 0.9196`.
 
 
 ## Porównanie wyników
 
-| Eksperyment | learning_rate | weight_decay | best epoch | stopped epoch | best val_loss | test_acc |
-|---|---:|---:|---:|---:|---:|---:|
-| Baseline 10 epok | 0.001 | 0.0001 | 9 | 9 | 0.2722 | 0.877 |
-| Optuna LR 10 epok | 0.003857 | 0.0001 | 8 | 9 | 0.2567 | 0.886 |
-| Baseline 50 epok | 0.001 | 0.0001 | 23 | 28 | 0.1874 | 0.9336 |
-| Optuna LR 50 epok | 0.003857 | 0.0001 | 15 | 20 | 0.2329 | 0.8906 |
-| Optuna LR + WD 50 epok | 0.0015435 | 0.0000105 | 16 | 21 | 0.1728 | 0.9196 |
+| Eksperyment                   | learning_rate | weight_decay | best epoch | stopped epoch | best val_loss | test_acc |
+|-------------------------------|---:|---:|---:|---:|---:|---:|
+| Baseline 10 epok              | 0.001 | 0.0001 | 9 | 9 | 0.2722 | 0.877 |
+| Optuna LR 10 epok             | 0.003857 | 0.0001 | 8 | 9 | 0.2567 | 0.886 |
+| Baseline 50 epok              | 0.001 | 0.0001 | 23 | 28 | 0.1874 | 0.9336 |
+| LR z Optuny 10 epok + 50 epok | 0.003857 | 0.0001 | 15 | 20 | 0.2329 | 0.8906 |
+| Optuna LR + WD 50 epok        | 0.0015435 | 0.0000105 | 16 | 21 | 0.1728 | 0.9196 |
 
-
-Optuna poprawiła wynik walidacyjny, szczególnie po jednoczesnej optymalizacji `learning_rate` i `weight_decay`. Najlepszy wynik walidacyjny po finalnym treningu z hiperparametrami z Optuny wyniósł `best val_loss = 0.1728`. Najwyższy wynik testowy uzyskał baseline trenowany maksymalnie przez 50 epok: `test_acc = 0.9336`. Optymalizacja poprawiła `val_loss`, ale nie poprawiła końcowej accuracy na zbiorze testowym.
-
-
-
+Optuna poprawiła `best val_loss`, szczególnie po jednoczesnej optymalizacji `learning_rate` i `weight_decay`. Najlepszy wynik walidacyjny uzyskano dla `Optuna LR+WD 50 epok`: `best val_loss = 0.1728`. Najwyższy wynik testowy uzyskał `Baseline 50 epok`: `test_acc = 0.9336`. Optymalizacja dla 50 epok poprawiła `val_loss`, ale nie poprawiła `test_acc` na zbiorze testowym.
 
 ## Końcowy wniosek
 
-Finalny model po Optunie osiągnął:
+Ostateczny model Optuna LR + WD 50 epok osiągnął:
 
 ```text
 best val_loss = 0.1728
@@ -282,7 +262,7 @@ Optuna poprawiła więc wynik walidacyjny, ale najwyższą skuteczność na zbio
 ------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------
 
-##  BentoML model serving
+## 2.  BentoML model serving
 
 Ta część projektu uruchamia wytrenowany klasyfikator BloodMNIST jako usługę REST API poprzez BentoML. Używany jest modelu wytrenowanego i wczytuje checkpoint z ```checkpoints/best.ckpt```.
 
@@ -326,7 +306,7 @@ Serwis używa GPU, jeśli CUDA jest dostępna, inaczej działa na CPU.
 
 W drugim terminalu należy aktywować środowisko wirtualne i uruchomić jeden z poniższych wariantów.
 
-wybranie pierwszego przykładu ze zbioru testowego BloodMNIST:
+uruchominie dla pierwszego przykładu ze zbioru testowego BloodMNIST:
 
 ```powershell
 python client.py
@@ -335,7 +315,7 @@ python client.py
 Można wybrać dowolną liczbę losowych przykładów, przykładowo chcąc 4 losowe przykłady ze zbioru testowego:
 
 ```powershell
-python client.py n
+python client.py 4
 ```
 
 Wybranie określonych przykładów ze zbioru testowego BloodMNIST według indeksów:
@@ -374,13 +354,9 @@ Użycie wszystkich obsługiwanych obrazów z folderu:
 python client.py sample_images
 ```
 
-Obsługiwane formaty własnych obrazów:
+Obsługiwane formaty: ``` .png, .jpg, .jpeg, .bmp, .tiff, .webp ```
 
-```text
-.png, .jpg, .jpeg, .bmp, .tiff, .webp
-```
-
-Opcja `--show-images` działa dla przykładów z BloodMNIST. W kodzie ustawiony jest limit liczby wyświetlanych obrazów, żeby nie tworzyć zbyt dużego wykresu.
+Opcja `--show-images` działa dla przykładów z BloodMNIST. Ustawiony jest limit liczby wyświetlanych obrazów, żeby nie tworzyć zbyt dużego wykresu.
 
 ### Przykładowy wynik
 
@@ -413,8 +389,144 @@ Response:
 }
 ```
 
-Zwracany JSON zawiera urządzenie użyte do wykonania predykcji, przewidziany identyfikator klasy, nazwę przewidzianej klasy oraz prawdopodobieństwa dla wszystkich 8 klas BloodMNIST.
+Zwracane jest urządzenie użyte do wykonania predykcji, przewidziany identyfikator klasy, nazwę przewidzianej klasy oraz prawdopodobieństwa dla wszystkich 8 klas BloodMNIST.
 
 
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+## 3. Cloud VM deployment
+
+Ta część projektu uruchamia serwer BentoML w kontenerze Docker na maszynie wirtualnej w chmurze Azure.
+
+```text
+Model: BloodCellCNN wytrenowany na BloodMNIST
+Serving framework: BentoML
+Konteneryzacja: Docker
+Cloud VM: Azure Virtual Machine z Ubuntu
+Test request: test_deployed_service.py
+```
+
+Kod serwera: ``` service.py ```
+
+Konfiguracja kontenera: ``` Dockerfile ```
+
+Skrypt testujący serwer: ``` test_deployed_service.py ```
+
+### Budowanie obrazu Docker
+
+Obraz Docker można zbudować lokalnie albo bezpośrednio na maszynie wirtualnej:
+
+```powershell
+docker build -t blood-cell-classifier .
+```
+
+Na maszynie wirtualnej, jeśli Docker wymaga uprawnień administratora:
+
+```bash
+sudo docker build -t blood-cell-classifier .
+```
+
+### Uruchomienie kontenera
+
+Lokalnie:
+
+```powershell
+docker run --rm -p 3000:3000 blood-cell-classifier
+```
+
+Na maszynie wirtualnej:
+
+```bash
+sudo docker run --rm -p 3000:3000 blood-cell-classifier
+```
+
+Kontener uruchamia serwer BentoML na porcie: ``` 3000 ```
+
+Adres do wysyłania zapytań do predykcji ma postać:
+
+```text
+http://PUBLIC_IP:3000/predict
+```
+
+### Uruchomienie na Azure VM
+
+Serwis został uruchomiony na maszynie wirtualnej Azure z systemem Ubuntu.
+
+Użyty publiczny endpoint:
+
+```text
+http://68.221.141.213:3000/predict
+```
+
+Na maszynie wirtualnej wykonano:
+
+```bash
+git clone https://github.com/Cinnamonne/blood-cell-classification.git
+cd blood-cell-classification
+sudo docker build -t blood-cell-classifier .
+sudo docker run --rm -p 3000:3000 blood-cell-classifier
+```
+
+W ustawieniach sieciowych Azure dodano regułę inbound dla portu```3000```.
+
+### Test serwera
+
+Do testowania publicznego endpointu służy: ``` test_deployed_service.py ```
+
+Domyślnie skrypt wysyła zapytanie do serwera działającego na Azure VM:
+```text
+http://68.221.141.213:3000/predict
+```
+
+Przykładowe uruchomienie:
+
+```powershell
+python test_deployed_service.py
+```
+
+Można też podać endpoint ręcznie, jeśli publiczny adres VM się zmieni:
+
+```powershell
+python test_deployed_service.py http://NEW_PUBLIC_IP:3000/predict
+```
+
+Przykładowy wynik:
+
+```text
+Endpoint: http://68.221.141.213:3000/predict
+Response:
+{
+  'device': 'cpu',
+  'predicted_class_id': 7,
+  'predicted_class_name': 'platelet',
+  'probabilities': [
+    0.008859595283865929,
+    0.08915380388498306,
+    0.11022865027189255,
+    0.08168857544660568,
+    0.014438780955970287,
+    0.013760769739747047,
+    0.021206164732575417,
+    0.6606636047363281
+  ]
+}
+```
+
+### Informacja o uruchomieniu przed sprawdzeniem
+
+Przed sprawdzeniem zadania trzeba ponownie uruchomić VM w Azure Portal, połączyć się z nią przez SSH i uruchomić kontener:
+
+```bash
+cd blood-cell-classification
+sudo docker run --rm -p 3000:3000 blood-cell-classifier
+```
+
+Po uruchomieniu kontenera endpoint można ponownie sprawdzić komendą:
+
+```powershell
+python test_deployed_service.py
+```
