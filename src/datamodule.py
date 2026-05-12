@@ -6,7 +6,7 @@ from torchvision import transforms
 
 import lightning as L
 from medmnist import INFO, BloodMNIST
-
+import os
 
 class BloodMNISTDataModule(L.LightningDataModule):
     """
@@ -58,7 +58,7 @@ class BloodMNISTDataModule(L.LightningDataModule):
         Lightning uruchamia tę metodę tylko do pobierania danych,
         a nie do tworzenia obiektów datasetu używanych w treningu
         """
-
+        os.makedirs(self.data_dir, exist_ok=True)
         BloodMNIST(
             split="train",
             root=self.data_dir,
